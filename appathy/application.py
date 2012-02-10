@@ -1,0 +1,96 @@
+import routes
+from routes import middleware
+import webob.dec
+import webob.exc
+
+from appathy import exceptions
+from appathy import utils
+
+
+class Application(middleware.RoutesMiddleware):
+    """
+    Provides a PasteDeploy-compatible application class.  Resources
+    and extensions are computed from the configuration; keys beginning
+    with 'resource.' identify resources, and keys beginning with
+    'extension.' identify space-separated lists of extensions to apply
+    to the corresponding resource.  The part after the '.' names the
+    resource being created or extended.  The values identify instances
+    of class Controller, which define the actual resource or an
+    extension.
+    """
+
+    def __init__(self, global_config, **local_conf):
+        """
+        Initialize the Application.
+        """
+
+        # Let's get a mapper
+        mapper = routes.Mapper(register=False)
+
+        # Now, set up our primary controllers
+        self.resources = {}
+        extensions = {}
+        for key, value in local_conf.items():
+            if '.' not in key:
+                continue
+
+            # OK, split up the key name
+            item_type, item_name = key.split('.', 1)
+
+            if item_type == 'extend':
+                # Filter out extensions for later processing
+                values = value.split()
+                ext_list, seen = extensions.setdefault(item_name, ([], set()))
+                ext_list.extend(v for v in values if v not in seen)
+                seen |= set(values)
+            elif item_type == 'resource':
+                # Set up resources
+                if item_name in self.resources:
+                    raise exceptions.DuplicateResource(item_name)
+                controller = utils.import_object(value)
+                self.resources[item_name] = controller(mapper)
+
+        # Now apply extensions
+        for name, (ext_list, _seen) in extensions.items():
+            if name not in self.resources:
+                raise exceptions.NoSuchResource(name)
+            res = self.resources[name]
+
+            for ext_class in ext_list:
+                # Get the class
+                ext = utils.import_object(value)
+
+                # Register the extension
+                res.wsgi_extend(ext())
+
+        # Now, with all routes set up, initialize the middleware
+        super(Application, self).__init__(self.dispatch, mapper,
+                                          singleton=False)
+
+    @webob.dec.wsgify
+    def dispatch(self, req):
+        """
+        Called by the Routes middleware to dispatch the request to the
+        appropriate controller.  If a webob exception is raised, it is
+        returned; if some other exception is raised, the webob
+        `HTTPInternalServerError` exception is raised.  Otherwise, the
+        return value of the controller is returned.
+        """
+
+        # Grab the request parameters
+        params = req.environ['wsgiorg.routing_args'][1]
+
+        # What controller is authoritative?
+        controller = params.pop('controller')
+
+        # Call into that controller
+        try:
+            return controller(req, params)
+        except webob.exc.HTTPException as e:
+            # Return the HTTP exception directly
+            return e
+        except Exception as e:
+            # All other exceptions result in a 500.  Note we're
+            # intentionally not including the exception message, since
+            # it could contain sensitive data.
+            return webob.exc.HTTPInternalServerError()
