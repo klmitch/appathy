@@ -299,7 +299,7 @@ def action(path, *methods, **kwargs):
 
     # Are we restricting the methods?
     if methods:
-        attrs['_wsgi_methods'] = list(methods)
+        attrs['_wsgi_methods'] = [meth.upper() for meth in methods]
 
     # If we have a condition function, set it up
     if 'conditions' in kwargs:
