@@ -14,6 +14,8 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
+import logging
+
 import routes
 from routes import middleware
 import webob.dec
@@ -21,6 +23,9 @@ import webob.exc
 
 from appathy import exceptions
 from appathy import utils
+
+
+LOG = logging.getLogger('appathy')
 
 
 class Application(middleware.RoutesMiddleware):
@@ -99,6 +104,19 @@ class Application(middleware.RoutesMiddleware):
         # What controller is authoritative?
         controller = params.pop('controller')
 
+        # Determine its name
+        cont_class = controller.__class__
+        cont_name = "%s:%s" % (cont_class.__module__, cont_class.__name__)
+
+        # Determine the origin of the request
+        origin = req.remote_addr if req.remote_adder else '[local]'
+        if req.remote_user:
+            origin = '%s (%s)' % (origin, req.remote_user)
+
+        # Log that we're processing the request
+        LOG.info("%s %s %s (controller %r)" %
+                 (origin, req.method, req.url, cont_name))
+
         # Call into that controller
         try:
             return controller(req, params)
@@ -106,7 +124,10 @@ class Application(middleware.RoutesMiddleware):
             # Return the HTTP exception directly
             return e
         except Exception as e:
-            # All other exceptions result in a 500.  Note we're
+            # Log the controller exception
+            LOG.exception("Exception occurred in controller %r" % cont_name)
+
+            # These exceptions result in a 500.  Note we're
             # intentionally not including the exception message, since
             # it could contain sensitive data.
             return webob.exc.HTTPInternalServerError()
