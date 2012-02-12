@@ -63,7 +63,7 @@ class Application(middleware.RoutesMiddleware):
                 # Set up resources
                 if item_name in self.resources:
                     raise exceptions.DuplicateResource(item_name)
-                controller = utils.import_object(value)
+                controller = utils.import_controller(value)
                 self.resources[item_name] = controller(mapper)
 
         # Now apply extensions
@@ -74,7 +74,7 @@ class Application(middleware.RoutesMiddleware):
 
             for ext_class in ext_list:
                 # Get the class
-                ext = utils.import_object(value)
+                ext = utils.import_controller(value)
 
                 # Register the extension
                 res.wsgi_extend(ext())

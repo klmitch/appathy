@@ -46,38 +46,46 @@ def norm_path(path, allow_trailing=True):
     return path
 
 
-def import_string(string):
+def import_call(string):
     """
-    Import an object identified by a string, using pkg_resources.
+    Import a controller class directly from the Python path.
     """
 
     return pkg_resources.EntryPoint.parse("x=" + string).load(False)
 
 
-def import_object(obj_name):
+def import_egg(string):
     """
-    Import the specified object given its name.
+    Import a controller class from an egg.  Uses the entry point group
+    "appathy.controller".
     """
 
-    # Split cls into a module and an object
-    if ':' not in obj_name:
-        raise ImportError("Invalid object identifier for import_class()")
+    # Split the string into a distribution and a name
+    dist, _sep, name = string.partition('#')
 
-    mod_name, full_name = cls_name.split(':', 1)
+    return pkg_resources.load_entry_point(dist, 'appathy.controller', name)
 
-    # Get the module
-    __import__(mod_name)
-    mod = sys.modules[mod_name]
 
-    # Look up the class
-    obj = mod
-    traversed = []
-    for part in full_name.split('.'):
-        traversed.append(part)
+def import_controller(string):
+    """
+    Imports the requested controller.  Controllers are specified in a
+    URI-like manner; the scheme is looked up using the entry point
+    group "appathy.loader".  Appathy supports the "call:" and "egg:"
+    schemes by default.
+    """
+
+    # Split out the scheme and the controller descriptor
+    scheme, _sep, controller = string.partition(':')
+
+    # Look up a loader for that scheme
+    for ep in pkg_resources.iter_entry_points('appathy.loader', scheme):
         try:
-            obj = getattr(obj, part)
-        except AttributeError:
-            raise ImportError("Cannot locate object %s in module %s" %
-                              ('.'.join(traversed), mod_name))
+            loader = ep.load()
+            break
+        except (ImportError, pkg_resources.UnknownExtra):
+            continue
+    else:
+        raise ImportError("Unable to find loader for scheme %r" % scheme)
 
-    return obj
+    # Load the controller
+    return loader(controller)
