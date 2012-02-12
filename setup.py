@@ -22,6 +22,13 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
     packages=['appathy'],
+    requires=[
+        "metatools",
+        "routes (>=1.12)",
+        "webob (>=1.1)",
+        "paste.deploy (>=1.5)",
+        "pkg_resources",
+        ],
     entry_points={
         'appathy.loader': [
             'call = appathy.utils:import_call',
