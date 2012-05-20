@@ -25,6 +25,6 @@ __all__ = [
     'Controller', 'action', 'extends', 'serializers', 'deserializers',
     'ResponseObject',
     'register_types',
-    'ApiToolkitException', 'IncompleteController', 'DuplicateResource',
+    'AppathyException', 'IncompleteController', 'DuplicateResource',
     'NoSuchResource',
     ]
