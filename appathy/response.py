@@ -86,6 +86,13 @@ class ResponseObject(collections.MutableMapping):
 
         return key.lower() in self._headers
 
+    def __len__(self):
+        """
+        Determine the number of headers set.
+        """
+
+        return len(self._headers)
+
     def __iter__(self):
         """
         Iterate over the defined headers, returning the header names.
