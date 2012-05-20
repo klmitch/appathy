@@ -33,8 +33,8 @@ class Application(middleware.RoutesMiddleware):
     Provides a PasteDeploy-compatible application class.  Resources
     and extensions are computed from the configuration; keys beginning
     with 'resource.' identify resources, and keys beginning with
-    'extension.' identify space-separated lists of extensions to apply
-    to the corresponding resource.  The part after the '.' names the
+    'extend.' identify space-separated lists of extensions to apply to
+    the corresponding resource.  The part after the '.' names the
     resource being created or extended.  The values identify instances
     of class Controller, which define the actual resource or an
     extension.
