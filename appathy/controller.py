@@ -181,7 +181,7 @@ class Controller(object):
         resp = descriptor.post_process(post_list, req, resp, params)
 
         # And finally, serialize and return the response
-        return resp.serialize()
+        return resp._serialize()
 
     def _get_action(self, action):
         """

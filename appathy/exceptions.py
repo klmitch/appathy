@@ -59,3 +59,7 @@ class NoSuchResource(AppathyException):
     """No such resource %(name)r"""
 
     base_args = ['name']
+
+
+class UnboundResponse(AppathyException):
+    """Response object must be bound before it can be serialized"""

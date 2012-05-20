@@ -18,6 +18,8 @@ import collections
 
 import webob
 
+from appathy import exceptions
+
 
 class ResponseObject(collections.MutableMapping):
     """
@@ -130,11 +132,15 @@ class ResponseObject(collections.MutableMapping):
         # Set up content type and serializer
         self.content_type, self.serializer = _descriptor.serializer(self.req)
 
-    def serialize(self):
+    def _serialize(self):
         """
         Serialize the ResponseObject.  Returns a webob `Response`
         object.
         """
+
+        # Do something appropriate if the response object is unbound
+        if self._defcode is None:
+            raise exceptions.UnboundResponse()
 
         # Build the response
         resp = self.response_class(request=self.req, status=self.code,
