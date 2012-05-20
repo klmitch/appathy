@@ -75,7 +75,13 @@ def _translators(attr, kwargs):
 
     # Add translators to a function or class
     def decorator(func):
-        xlators = func.__dict__.setdefault(attr, {})
+        # Make sure we have the attribute
+        try:
+            xlators = getattr(func, attr)
+        except AttributeError:
+            xlators = {}
+            setattr(func, attr, xlators)
+
         xlators.update(kwargs)
         return func
     return decorator
