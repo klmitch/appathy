@@ -24,6 +24,8 @@ class ResponseObject(collections.MutableMapping):
     Represent a response object.
     """
 
+    response_class = webob.Response
+
     def __init__(self, req, result=None, code=None, headers=None, **kwargs):
         """
         Initialize a ResponseObject.
@@ -135,8 +137,8 @@ class ResponseObject(collections.MutableMapping):
         """
 
         # Build the response
-        resp = webob.Response(request=self.req, status=self.code,
-                              headerlist=self._headers.items())
+        resp = self.response_class(request=self.req, status=self.code,
+                                   headerlist=self._headers.items())
 
         # Do we have a body?
         if self.result:
