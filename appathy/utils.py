@@ -75,7 +75,9 @@ def import_controller(string):
     """
 
     # Split out the scheme and the controller descriptor
-    scheme, _sep, controller = string.partition(':')
+    scheme, sep, controller = string.partition(':')
+    if sep != ':':
+        raise ImportError("No loader scheme specified by %r" % string)
 
     # Look up a loader for that scheme
     for ep in pkg_resources.iter_entry_points('appathy.loader', scheme):
