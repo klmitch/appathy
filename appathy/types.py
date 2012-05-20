@@ -42,8 +42,11 @@ class Translators(object):
         Select the translator corresponding to the given content type.
         """
 
+        # Get the type name
+        type_name = media_types[content_type]
+
         # Select the translator to use
-        xlator = self.translators[media_types[content_type]]
+        xlator = self.translators[type_name]
 
         # If it's a class, instantiate it
         if inspect.isclass(xlator):
