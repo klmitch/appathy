@@ -15,6 +15,7 @@
 # <http://www.gnu.org/licenses/>.
 
 import functools
+import logging
 
 import metatools
 import webob
@@ -23,6 +24,9 @@ import webob.exc
 from appathy import exceptions
 from appathy import response
 from appathy import utils
+
+
+LOG = logging.getLogger('appathy')
 
 
 class ControllerMeta(metatools.MetaClass):
@@ -88,6 +92,7 @@ class ControllerMeta(metatools.MetaClass):
             mcs.inherit_set(base, namespace, '_wsgi_extensions')
             mcs.inherit_dict(base, namespace, '_wsgi_serializers')
             mcs.inherit_dict(base, namespace, '_wsgi_deserializers')
+            mcs.inherit_dict(base, namespace, 'wsgi_method_map')
 
         return super(ControllerMeta, mcs).__new__(mcs, name, bases, namespace)
 
@@ -105,11 +110,40 @@ class Controller(object):
     Note that the `wsgi_path_prefix` attribute is subject to
     inheritance; if a superclass defines `wsgi_path_prefix`, its value
     will be prepended to the one specified for this class.
+
+    As a feature, the action methods create(), index(), show(),
+    update(), and delete() are treated specially.  As long as they are
+    decorated by the @action() decorator, the path and HTTP methods
+    can be omitted from the arguments to @action() and will
+    automatically be constructed as follows:
+
+    create() => POST /<name>
+    index()  => GET /<name>
+    show()   => GET /<name>/{id}
+    update() => PUT /<name>/{id}
+    delete() => DELETE /<name>/{id}
+
+    In this table, <name> will be replaced with the value of the
+    `wsgi_name` attribute of the controller class.  The {id} group
+    identifies a portion of the URI which will be passed as an
+    argument to the method.  This mapping is defined in the
+    `wsgi_method_map` attribute of the class, where function names are
+    mapped to 2-tuples consisting of the path (with "%s" being
+    replaced by the `wsgi_name` attribute value) and the method list;
+    note that this second element MUST be a list.
     """
 
     __metaclass__ = ControllerMeta
 
     wsgi_resp_type = response.ResponseObject
+
+    wsgi_method_map = dict(
+        create=("/%s", ["POST"]),
+        index=("/%s", ["GET"]),
+        show=("/%s/{id}", ["GET"]),
+        update=("/%s/{id}", ["PUT"]),
+        delete=("/%s/{id}", ["DELETE"]),
+        )
 
     def __new__(cls, mapper=None):
         """
@@ -208,16 +242,31 @@ class Controller(object):
         Given an action method, generates a route for it.
         """
 
+        # First thing, determine the path for the method
+        path = method._wsgi_path
+        methods = None
+        if method._wsgi_path is None:
+            map_rule = self.wsgi_method_map.get(method.__name__)
+            if map_rule is None:
+                # Can't connect this method
+                LOG.warning("No path specified for action method %s() of "
+                            "resource %s" % (method.__name__, self.wsgi_name))
+                return
+
+            # Compute the path and the method list
+            path = utils.norm_path(map_rule[0] % self.wsgi_name)
+            methods = map_rule[1]
+
         # Compute route name
         name = '%s_%s' % (self.wsgi_name, action)
 
         # Set up path
-        path = getattr(self, 'wsgi_path_prefix', '') + method._wsgi_path
+        path = getattr(self, 'wsgi_path_prefix', '') + path
 
         # Build up the conditions
         conditions = {}
         if hasattr(method, '_wsgi_methods'):
-            conditions['method'] = method._wsgi_methods
+            conditions['method'] = methods if methods else method._wsgi_methods
         if hasattr(method, '_wsgi_condition'):
             conditions['function'] = method._wsgi_condition
 
@@ -268,13 +317,13 @@ class Controller(object):
                 del self.wsgi_descriptors[key]
 
 
-def action(path, *methods, **kwargs):
+def action(*methods, **kwargs):
     """
     Decorator which marks a method as an action.  The first positional
     argument identifies a Routes-compatible path for the action
-    method.  If specified, remaining positional arguments identify
-    permitted HTTP methods.  The following keyword arguments are also
-    recognized:
+    method, which must begin with a '/'.  If specified, the remaining
+    positional arguments identify permitted HTTP methods.  The
+    following keyword arguments are also recognized:
 
     * conditions
         Identifies a single function which will be passed the request
@@ -291,15 +340,29 @@ def action(path, *methods, **kwargs):
     action method when called.
     """
 
+    # Convert methods to a list, so it can be mutated if needed
+    methods = list(methods)
+
     # Build up the function attributes
     attrs = dict(_wsgi_action=True)
 
-    # Normalize the path and set the attr
-    attrs['_wsgi_path'] = utils.norm_path(path)
+    # Get the path...
+    if methods and methods[0][0] == '/':
+        # Normalize the path and set the attr
+        attrs['_wsgi_path'] = utils.norm_path(methods.pop(0))
 
-    # Are we restricting the methods?
-    if methods:
-        attrs['_wsgi_methods'] = [meth.upper() for meth in methods]
+        # Are we restricting the methods?
+        if methods:
+            attrs['_wsgi_methods'] = [meth.upper() for meth in methods]
+    else:
+        # Path will be computed from collection/resource and method
+        # name
+        attrs['_wsgi_path'] = None
+
+        # Allowed methods will be based on the function name; provide
+        # some value for the attribute so they get set by the _route()
+        # method
+        attrs['_wsgi_methods'] = None
 
     # If we have a condition function, set it up
     if 'conditions' in kwargs:

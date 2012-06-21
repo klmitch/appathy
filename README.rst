@@ -32,7 +32,12 @@ to specify the default response code (normally 200), and
 request before selecting the action method.  The action method will be
 called with the request and a set of keyword arguments derived from
 the URI path and any additional keyword arguments that were passed to
-the ``@action()`` decorator.
+the ``@action()`` decorator.  Note that certain controller methods are
+special: if the path is not specified to the ``@action()`` decorator
+for the controller methods ``create()``, ``index()``, ``show()``,
+``update()``, or ``delete()``, appropriate default paths are
+constructed from the controller's name.  (These methods must still be
+decorated by ``@action()``, however.)
 
 Controller methods decorated with the ``@extends`` decorator specify a
 method that will extend an action method with the same function name
