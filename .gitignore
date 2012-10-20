@@ -1,4 +1,9 @@
 /build
+/.coverage
+/cov_html
 /dist
+/.tox
+*.egg
 *.egg-info
-*.pyc
+*.log
+*.py[co]
