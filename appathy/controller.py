@@ -143,7 +143,7 @@ class Controller(object):
         show=("/%s/{id}", ["GET"]),
         update=("/%s/{id}", ["PUT"]),
         delete=("/%s/{id}", ["DELETE"]),
-        )
+    )
 
     def __new__(cls, mapper=None):
         """
@@ -367,11 +367,13 @@ def action(*methods, **kwargs):
     # If we have a condition function, set it up
     if 'conditions' in kwargs:
         condition = kwargs.pop('conditions')
+
         @functools.wraps(condition)
         def wrapper(req, match_dict):
             if isinstance(req, dict):
                 req = webob.Request(req)
             return condition(req, match_dict)
+
         attrs['_wsgi_condition'] = wrapper
 
     # If we have a default code, set it up

@@ -27,4 +27,4 @@ __all__ = [
     'register_types',
     'AppathyException', 'IncompleteController', 'DuplicateResource',
     'NoSuchResource',
-    ]
+]

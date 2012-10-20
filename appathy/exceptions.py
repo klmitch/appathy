@@ -14,6 +14,7 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
+
 class AppathyException(Exception):
     """Base class for all Appathy exceptions."""
 
