@@ -1,5 +1,5 @@
 metatools
-paste.deploy (>=1.5)
-routes (>=1.12)
+PasteDeploy>=1.5
+routes>=1.12
 setuptools
-webob (>=1.1)
+webob>=1.1

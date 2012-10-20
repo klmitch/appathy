@@ -34,7 +34,13 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
     packages=['appathy'],
-    requires=readreq('install-requires'),
+    requires=[
+        'metatools',
+        'PasteDeploy(>=1.5)',
+        'routes(>=1.12)',
+        'setuptools',
+        'webob(>=1.1)'
+        ],
     tests_require=readreq('test-requires'),
     entry_points={
         'appathy.loader': [
