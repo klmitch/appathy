@@ -62,6 +62,9 @@ class TestCase(unittest2.TestCase):
         # Clear the log messages
         test_handler.get_messages(True)
 
+    def dict_select(self, full_dict, exemplar):
+        return dict((k, full_dict[k]) for k in exemplar)
+
     @property
     def log_messages(self):
         # Retrieve and clear test log messages
