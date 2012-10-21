@@ -21,6 +21,7 @@ import metatools
 import webob
 import webob.exc
 
+from appathy import actions
 from appathy import exceptions
 from appathy import response
 from appathy import utils
@@ -229,7 +230,7 @@ class Controller(object):
 
         # Generate an ActionDescriptor if necessary
         if action not in self.wsgi_descriptors:
-            self.wsgi_descriptors[action] = ActionDescriptor(
+            self.wsgi_descriptors[action] = actions.ActionDescriptor(
                 self.wsgi_actions[action],
                 self.wsgi_extensions.get(action, []),
                 self.wsgi_resp_type)
@@ -245,7 +246,7 @@ class Controller(object):
         # First thing, determine the path for the method
         path = method._wsgi_path
         methods = None
-        if method._wsgi_path is None:
+        if path is None:
             map_rule = self.wsgi_method_map.get(method.__name__)
             if map_rule is None:
                 # Can't connect this method
@@ -290,14 +291,13 @@ class Controller(object):
         # Add/override actions
         for key, action in controller.wsgi_actions.items():
             # If it's a new action, we'll need to route
-            if self.mapper and key not in self.wsgi_actions:
+            if self.wsgi_mapper and key not in self.wsgi_actions:
                 self._route(key, action)
 
             self.wsgi_actions[key] = action
 
             # Clear existing action descriptors
-            if key in self.wsgi_descriptors:
-                del self.wsgi_descriptors[key]
+            self.wsgi_descriptors.pop(key, None)
 
         # Register extensions
         for key, extensions in controller.wsgi_extensions.items():
@@ -306,15 +306,13 @@ class Controller(object):
                 continue
 
             # Prime the pump...
-            if key not in self.wsgi_extensions:
-                self.wsgi_extensions[key] = []
+            self.wsgi_extensions.setdefault(key, [])
 
             # Add the extensions
             self.wsgi_extensions[key].extend(extensions)
 
             # Clear existing action descriptors
-            if key in self.wsgi_descriptors:
-                del self.wsgi_descriptors[key]
+            self.wsgi_descriptors.pop(key, None)
 
 
 def action(*methods, **kwargs):
