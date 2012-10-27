@@ -211,7 +211,7 @@ class ActionDescriptor(object):
                     result = ext.send(resp)
                 except StopIteration:
                     # Expected, but not required
-                    pass
+                    result = None
 
                 # If it returned a response, use that for subsequent
                 # processing
