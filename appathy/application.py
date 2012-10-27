@@ -61,23 +61,31 @@ class Application(middleware.RoutesMiddleware):
             if item_type == 'extend':
                 # Filter out extensions for later processing
                 values = value.split()
-                ext_list, seen = extensions.setdefault(item_name, ([], set()))
-                ext_list.extend(v for v in values if v not in seen)
-                seen |= set(values)
+
+                ext_list = []
+                seen = set()
+                for value in values:
+                    # Filter out repeats
+                    if value in seen:
+                        continue
+                    ext_list.append(value)
+                    seen.add(value)
+
+                extensions[item_name] = ext_list
             elif item_type == 'resource':
                 # Set up resources
                 controller = utils.import_controller(value)
                 self.resources[item_name] = controller(mapper)
 
         # Now apply extensions
-        for name, (ext_list, _seen) in extensions.items():
+        for name, ext_list in extensions.items():
             if name not in self.resources:
                 raise exceptions.NoSuchResource(name)
             res = self.resources[name]
 
             for ext_class in ext_list:
                 # Get the class
-                ext = utils.import_controller(value)
+                ext = utils.import_controller(ext_class)
 
                 # Register the extension
                 res.wsgi_extend(ext())
