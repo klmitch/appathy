@@ -213,11 +213,15 @@ class ActionDescriptor(object):
                     # Expected, but not required
                     pass
 
-                # If it returned a response, bail out
+                # If it returned a response, use that for subsequent
+                # processing
                 if result:
                     resp = self.wrap(req, result)
             else:
                 result = ext(req, resp, **params)
+
+                # If it returned a response, use that for subsequent
+                # processing
                 if result:
                     resp = self.wrap(req, result)
 
