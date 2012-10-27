@@ -15,9 +15,12 @@
 # <http://www.gnu.org/licenses/>.
 
 import mock
+import webob
 import webob.exc
 
 from appathy import actions
+from appathy import exceptions
+from appathy import response
 
 import tests
 
@@ -383,3 +386,256 @@ class ActionDescriptorTest(tests.TestCase):
         self.assertFalse(serializer.called)
         self.assertEqual(result[0], 'text/plain')
         self.assertEqual(id(result[1]), id(serializer))
+
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_pre_process_functions(self, mock_wrap, mock_ActionMethod):
+        meth = mock.Mock()
+        exts = [
+            mock.Mock(isgenerator=False),
+            mock.Mock(isgenerator=False),
+            mock.Mock(isgenerator=False),
+        ]
+        mock_ActionMethod.side_effect = [meth] + exts
+
+        desc = actions.ActionDescriptor('method', ['ext1', 'ext2', 'ext3'],
+                                        'resp')
+
+        result = desc.pre_process('req', 'params')
+
+        self.assertEqual(result, (None, list(reversed(exts))))
+        self.assertFalse(mock_wrap.called)
+
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_pre_process_generators_noyield(self, mock_wrap,
+                                            mock_ActionMethod):
+        meth = mock.Mock()
+        ext_gens = [
+            mock.Mock(**{'next.return_value': None}),
+            mock.Mock(**{'next.return_value': None}),
+            mock.Mock(**{'next.return_value': None}),
+        ]
+        exts = [
+            mock.Mock(isgenerator=True, return_value=ext_gens[0]),
+            mock.Mock(isgenerator=True, return_value=ext_gens[1]),
+            mock.Mock(isgenerator=True, return_value=ext_gens[2]),
+        ]
+        mock_ActionMethod.side_effect = [meth] + exts
+
+        desc = actions.ActionDescriptor('method', ['ext1', 'ext2', 'ext3'],
+                                        'resp')
+
+        result = desc.pre_process('req', dict(a=1, b=2, c=3))
+
+        exts[0].assert_called_once_with('req', a=1, b=2, c=3)
+        exts[1].assert_called_once_with('req', a=1, b=2, c=3)
+        exts[2].assert_called_once_with('req', a=1, b=2, c=3)
+        ext_gens[0].next.assert_called_once_with()
+        ext_gens[1].next.assert_called_once_with()
+        ext_gens[2].next.assert_called_once_with()
+        self.assertEqual(result, (None, list(reversed(ext_gens))))
+        self.assertFalse(mock_wrap.called)
+
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_pre_process_generators_noyield_stop(self, mock_wrap,
+                                                 mock_ActionMethod):
+        meth = mock.Mock()
+        ext_gens = [
+            mock.Mock(**{'next.side_effect': StopIteration}),
+            mock.Mock(**{'next.return_value': None}),
+            mock.Mock(**{'next.side_effect': StopIteration}),
+        ]
+        exts = [
+            mock.Mock(isgenerator=True, return_value=ext_gens[0]),
+            mock.Mock(isgenerator=True, return_value=ext_gens[1]),
+            mock.Mock(isgenerator=True, return_value=ext_gens[2]),
+        ]
+        mock_ActionMethod.side_effect = [meth] + exts
+
+        desc = actions.ActionDescriptor('method', ['ext1', 'ext2', 'ext3'],
+                                        'resp')
+
+        result = desc.pre_process('req', dict(a=1, b=2, c=3))
+
+        exts[0].assert_called_once_with('req', a=1, b=2, c=3)
+        exts[1].assert_called_once_with('req', a=1, b=2, c=3)
+        exts[2].assert_called_once_with('req', a=1, b=2, c=3)
+        ext_gens[0].next.assert_called_once_with()
+        ext_gens[1].next.assert_called_once_with()
+        ext_gens[2].next.assert_called_once_with()
+        self.assertEqual(result, (None, [ext_gens[1]]))
+        self.assertFalse(mock_wrap.called)
+
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_pre_process_generators_yield(self, mock_wrap, mock_ActionMethod):
+        meth = mock.Mock()
+        ext_gens = [
+            mock.Mock(**{'next.return_value': None}),
+            mock.Mock(**{'next.return_value': 'generated'}),
+            mock.Mock(**{'next.return_value': None}),
+        ]
+        exts = [
+            mock.Mock(isgenerator=True, return_value=ext_gens[0]),
+            mock.Mock(isgenerator=True, return_value=ext_gens[1]),
+            mock.Mock(isgenerator=True, return_value=ext_gens[2]),
+        ]
+        mock_ActionMethod.side_effect = [meth] + exts
+
+        desc = actions.ActionDescriptor('method', ['ext1', 'ext2', 'ext3'],
+                                        'resp')
+
+        result = desc.pre_process('req', dict(a=1, b=2, c=3))
+
+        exts[0].assert_called_once_with('req', a=1, b=2, c=3)
+        exts[1].assert_called_once_with('req', a=1, b=2, c=3)
+        self.assertFalse(exts[2].called)
+        ext_gens[0].next.assert_called_once_with()
+        ext_gens[1].next.assert_called_once_with()
+        self.assertFalse(ext_gens[2].next.called)
+        self.assertEqual(result, ('resp', [ext_gens[0]]))
+        mock_wrap.assert_called_once_with('req', 'generated')
+
+    @mock.patch('inspect.isgenerator', return_value=False)
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_post_process_functions_noreplace(self, mock_wrap,
+                                              _mock_ActionMethod,
+                                              _mock_is_generator):
+        ext_list = [
+            mock.Mock(return_value=None),
+            mock.Mock(return_value=None),
+            mock.Mock(return_value=None),
+        ]
+
+        desc = actions.ActionDescriptor('method', [], 'resp_type')
+
+        result = desc.post_process(ext_list, 'req', 'in response',
+                                   dict(a=1, b=2, c=3))
+
+        ext_list[0].assert_called_once_with('req', 'in response',
+                                            a=1, b=2, c=3)
+        ext_list[1].assert_called_once_with('req', 'in response',
+                                            a=1, b=2, c=3)
+        ext_list[2].assert_called_once_with('req', 'in response',
+                                            a=1, b=2, c=3)
+        self.assertEqual(result, 'in response')
+        self.assertFalse(mock_wrap.called)
+
+    @mock.patch('inspect.isgenerator', return_value=False)
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_post_process_functions_withreplace(self, mock_wrap,
+                                                _mock_ActionMethod,
+                                                _mock_is_generator):
+        ext_list = [
+            mock.Mock(return_value=None),
+            mock.Mock(return_value='replacement'),
+            mock.Mock(return_value=None),
+        ]
+
+        desc = actions.ActionDescriptor('method', [], 'resp_type')
+
+        result = desc.post_process(ext_list, 'req', 'in response',
+                                   dict(a=1, b=2, c=3))
+
+        ext_list[0].assert_called_once_with('req', 'in response',
+                                            a=1, b=2, c=3)
+        ext_list[1].assert_called_once_with('req', 'in response',
+                                            a=1, b=2, c=3)
+        ext_list[2].assert_called_once_with('req', 'resp',
+                                            a=1, b=2, c=3)
+        self.assertEqual(result, 'resp')
+        mock_wrap.assert_called_once_with('req', 'replacement')
+
+    @mock.patch('inspect.isgenerator', return_value=True)
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_post_process_generators_noreplace(self, mock_wrap,
+                                               _mock_ActionMethod,
+                                               _mock_is_generator):
+        ext_list = [
+            mock.Mock(**{'send.return_value': None}),
+            mock.Mock(**{'send.side_effect': StopIteration}),
+            mock.Mock(**{'send.return_value': None}),
+        ]
+
+        desc = actions.ActionDescriptor('method', [], 'resp_type')
+
+        result = desc.post_process(ext_list, 'req', 'in response',
+                                   dict(a=1, b=2, c=3))
+
+        ext_list[0].send.assert_called_once_with('in response')
+        ext_list[1].send.assert_called_once_with('in response')
+        ext_list[2].send.assert_called_once_with('in response')
+        self.assertEqual(result, 'in response')
+        self.assertFalse(mock_wrap.called)
+
+    @mock.patch('inspect.isgenerator', return_value=True)
+    @mock.patch.object(actions, 'ActionMethod')
+    @mock.patch.object(actions.ActionDescriptor, 'wrap', return_value='resp')
+    def test_post_process_generators_withreplace(self, mock_wrap,
+                                                 _mock_ActionMethod,
+                                                 _mock_is_generator):
+        ext_list = [
+            mock.Mock(**{'send.return_value': None}),
+            mock.Mock(**{'send.return_value': 'replacement'}),
+            mock.Mock(**{'send.return_value': None}),
+        ]
+
+        desc = actions.ActionDescriptor('method', [], 'resp_type')
+
+        result = desc.post_process(ext_list, 'req', 'in response',
+                                   dict(a=1, b=2, c=3))
+
+        ext_list[0].send.assert_called_once_with('in response')
+        ext_list[1].send.assert_called_once_with('in response')
+        ext_list[2].send.assert_called_once_with('resp')
+        self.assertEqual(result, 'resp')
+        mock_wrap.assert_called_once_with('req', 'replacement')
+
+    @mock.patch.object(actions, 'ActionMethod')
+    def test_wrap_httpexception(self, _mock_ActionMethod):
+        response = webob.exc.HTTPNotFound()
+
+        desc = actions.ActionDescriptor('method', [], 'resp_type')
+
+        with self.assertRaises(webob.exc.HTTPException) as ctx:
+            result = desc.wrap('req', response)
+
+        self.assertEqual(id(ctx.exception), id(response))
+
+    @mock.patch.object(actions, 'ActionMethod')
+    def test_wrap_webob(self, _mock_ActionMethod):
+        response = webob.Response()
+
+        desc = actions.ActionDescriptor('method', [], 'resp_type')
+
+        with self.assertRaises(exceptions.AppathyResponse) as ctx:
+            result = desc.wrap('req', response)
+
+        self.assertEqual(id(ctx.exception.response), id(response))
+
+    @mock.patch.object(actions, 'ActionMethod')
+    def test_wrap_responseobject(self, _mock_ActionMethod):
+        resp = mock.Mock(spec=response.ResponseObject)
+
+        desc = actions.ActionDescriptor('method', [], 'resp_type')
+
+        result = desc.wrap('req', resp)
+
+        self.assertEqual(id(result), id(resp))
+        resp._bind.assert_called_once_with(desc)
+
+    @mock.patch.object(actions, 'ActionMethod')
+    def test_wrap_other(self, _mock_ActionMethod):
+        resp_type = mock.Mock(return_value='wrapped')
+
+        desc = actions.ActionDescriptor('method', [], resp_type)
+
+        result = desc.wrap('req', 'response')
+
+        self.assertEqual(result, 'wrapped')
+        resp_type.assert_called_once_with('req', 'response', _descriptor=desc)
