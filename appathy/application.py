@@ -66,8 +66,6 @@ class Application(middleware.RoutesMiddleware):
                 seen |= set(values)
             elif item_type == 'resource':
                 # Set up resources
-                if item_name in self.resources:
-                    raise exceptions.DuplicateResource(item_name)
                 controller = utils.import_controller(value)
                 self.resources[item_name] = controller(mapper)
 

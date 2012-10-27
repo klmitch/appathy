@@ -66,12 +66,6 @@ class IncompleteController(AppathyException):
     """Cannot instantiate an incomplete controller"""
 
 
-class DuplicateResource(AppathyException):
-    """Resource %(name)r already exists"""
-
-    base_args = ['name']
-
-
 class NoSuchResource(AppathyException):
     """No such resource %(name)r"""
 
