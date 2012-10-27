@@ -15,6 +15,22 @@
 # <http://www.gnu.org/licenses/>.
 
 
+class AppathyResponse(Exception):
+    """
+    Special exception used by appathy.actions.ActionDescriptor.wrap()
+    for passing webob.Response upstream to the application, for
+    immediate return to the caller.
+    """
+
+    def __init__(self, response):
+        """
+        Initialize the exception by storing the response.
+        """
+
+        super(AppathyResponse, self).__init__('Response bail-out')
+        self.response = response
+
+
 class AppathyException(Exception):
     """Base class for all Appathy exceptions."""
 

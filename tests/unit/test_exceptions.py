@@ -48,3 +48,10 @@ class AppathyExceptionTest(tests.TestCase):
 
         exc = TestExceptionBaseArgs(foo="testing")
         self.assertEqual(str(exc), "this is a test: testing")
+
+
+class AppathyResponseTest(tests.TestCase):
+    def test_init(self):
+        exc = exceptions.AppathyResponse('response')
+
+        self.assertEqual(exc.response, 'response')

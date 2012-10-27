@@ -19,6 +19,7 @@ import inspect
 import webob
 import webob.exc
 
+from appathy import exceptions
 from appathy import response
 from appathy import types
 
@@ -237,10 +238,14 @@ class ActionDescriptor(object):
         instances of ResponseObject will be wrapped in one.
         """
 
-        if isinstance(result, webob.Response):
-            # Straight-up webob Response object; we use raise to bail
-            # out immediately and pass it upstream
+        if isinstance(result, webob.exc.HTTPException):
+            # It's a webob HTTP exception; use raise to bail out
+            # immediately and pass it upstream
             raise result
+        elif isinstance(result, webob.Response):
+            # Straight-up webob Response object; we raise
+            # AppathyResponse to bail out
+            raise exceptions.AppathyResponse(result)
         elif isinstance(result, response.ResponseObject):
             # Already a ResponseObject; bind it to this descriptor
             result._bind(self)

@@ -123,6 +123,9 @@ class Application(middleware.RoutesMiddleware):
         except webob.exc.HTTPException as e:
             # Return the HTTP exception directly
             return e
+        except exceptions.AppathyResponse as e:
+            # Return the webob.Response directly
+            return e.response
         except Exception as e:
             # Log the controller exception
             LOG.exception("Exception occurred in controller %r" % cont_name)
