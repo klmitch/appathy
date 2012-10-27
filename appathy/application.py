@@ -115,7 +115,7 @@ class Application(middleware.RoutesMiddleware):
         cont_name = "%s:%s" % (cont_class.__module__, cont_class.__name__)
 
         # Determine the origin of the request
-        origin = req.remote_addr if req.remote_adder else '[local]'
+        origin = req.remote_addr if req.remote_addr else '[local]'
         if req.remote_user:
             origin = '%s (%s)' % (origin, req.remote_user)
 
