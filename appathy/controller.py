@@ -429,3 +429,82 @@ def extends(func):
     # Mark the function as an extension
     func._wsgi_extension = True
     return func
+
+
+def _extends_preproc(prefunc):
+    """
+    Decorator which marks a method as a preprocessing extension.  The
+    method must have the same name as the method it is extending.
+    Extension methods marked with this decorator are called before
+    calling the action method.  They may perform any desired
+    preprocessing of the request.  Note that if an actual value is
+    returned to the caller, the normal request processing is aborted.
+    Also note that the postprocessing portions of all prior extensions
+    *will* be called on the returned response.
+
+    This decorator works by converting the decorated method into a
+    generator, which is called as described in the documentation for
+    ``@extends``.  (It is not necessary to additionally use the
+    ``@extends`` decorator on the method.)
+
+    To additionally add a post-processing phase, decorate the
+    post-processing method (which must have the same name as the
+    original method) with the ``@postproc`` decorator, i.e.:
+
+        class Controller(appathy.Controller):
+            @extends.preproc
+            def show(self, req, id):
+                pass
+
+            @show.postproc
+            def show(self, req, resp, id):
+                pass
+
+    If you don't need preprocessing, use the ``@extends`` decorator
+    instead.
+    """
+
+    # Set up the set of functions
+    functions = dict(preproc=prefunc)
+
+    # Set up the wrapper which implements the behavior
+    @functools.wraps(prefunc)
+    def wrapper(self, req, **params):
+        # Run the preprocessor and yield its response
+        resp = yield functions['preproc'](self, req, **params)
+
+        # If we have a postprocessor, call it on the response object
+        if 'postproc' in functions:
+            yield functions['postproc'](self, req, resp, **params)
+
+    # Set up the postprocess decorator
+    def postproc(postfunc):
+        """
+        Decorator which marks a method as a paired postprocessing
+        extension.  The method must have the same name as the method
+        it is extending, which will also be the name of the
+        preprocessing extension.  See the ``@extends.preproc``
+        decorator for more information, including an example.
+        """
+
+        # Have to do a little sanity-checking here
+        if prefunc.__name__ != postfunc.__name__:
+            raise TypeError("must use same name for @%s.postproc function" %
+                            prefunc.__name__)
+
+        # Save the post-process function
+        functions['postproc'] = postfunc
+
+        # Return the same wrapper
+        return wrapper
+
+    # Set up some attributes on the function
+    wrapper._wsgi_extension = True  # this is an extension
+    wrapper._wsgi_extension_functions = functions
+    wrapper.postproc = postproc
+
+    return wrapper
+
+
+# Set up the special preprocess decorator
+extends.preproc = _extends_preproc

@@ -14,6 +14,8 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
+import inspect
+
 import mock
 import webob.exc
 
@@ -31,6 +33,99 @@ class ExtendsTest(tests.TestCase):
             pass
 
         self.assertEqual(func._wsgi_extension, True)
+
+
+class ExtendsPreprocTest(tests.TestCase):
+    def test_extends_preproc(self):
+        def func():
+            pass
+
+        ext_func = controller.extends.preproc(func)
+
+        self.assertEqual(ext_func._wsgi_extension, True)
+        self.assertEqual(ext_func._wsgi_extension_functions,
+                         dict(preproc=func))
+
+    def test_extends_preproc_postproc(self):
+        def func1():
+            pass
+        func1.__name__ = 'func'
+
+        def func2():
+            pass
+        func2.__name__ = 'func'
+
+        ext_func1 = controller.extends.preproc(func1)
+        ext_func2 = ext_func1.postproc(func2)
+
+        self.assertEqual(id(ext_func1), id(ext_func2))
+        self.assertEqual(ext_func1._wsgi_extension, True)
+        self.assertEqual(ext_func1._wsgi_extension_functions,
+                         dict(preproc=func1, postproc=func2))
+
+    def test_extends_preproc_postproc_badname(self):
+        def func1():
+            pass
+
+        def func2():
+            pass
+
+        ext_func1 = controller.extends.preproc(func1)
+
+        with self.assertRaises(TypeError):
+            ext_func2 = ext_func1.postproc(func2)
+
+    def test_extends_preproc_isgenerator(self):
+        @controller.extends.preproc
+        def func():
+            pass
+
+        self.assertTrue(inspect.isgeneratorfunction(func))
+
+    def test_extends_preproc_call(self):
+        @controller.extends.preproc
+        def func(inst, req, **params):
+            self.assertEqual(inst, 'instance')
+            self.assertEqual(req, 'request')
+            self.assertEqual(params, dict(a=1, b=2, c=3))
+
+            return 'response'
+
+        gen = func('instance', 'request', a=1, b=2, c=3)
+
+        resp = gen.next()
+
+        self.assertEqual(resp, 'response')
+        self.assertRaises(StopIteration, gen.next)
+
+    def test_extends_preproc_postproc_call(self):
+        @controller.extends.preproc
+        def func(inst, req, **params):
+            self.assertEqual(inst, 'instance')
+            self.assertEqual(req, 'request')
+            self.assertEqual(params, dict(a=1, b=2, c=3))
+
+            return 'resp'
+
+        @func.postproc
+        def func(inst, req, resp, **params):
+            self.assertEqual(inst, 'instance')
+            self.assertEqual(req, 'request')
+            self.assertEqual(resp, 'response')
+            self.assertEqual(params, dict(a=1, b=2, c=3))
+
+            return 'spam'
+
+        gen = func('instance', 'request', a=1, b=2, c=3)
+
+        resp = gen.next()
+
+        self.assertEqual(resp, 'resp')
+
+        resp = gen.send('response')
+
+        self.assertEqual(resp, 'spam')
+        self.assertRaises(StopIteration, gen.next)
 
 
 class ActionTest(tests.TestCase):
