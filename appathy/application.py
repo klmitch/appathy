@@ -18,7 +18,9 @@ import logging
 
 import routes
 from routes import middleware
+import webob
 import webob.dec
+import webob.descriptors
 import webob.exc
 
 from appathy import exceptions
@@ -26,6 +28,16 @@ from appathy import utils
 
 
 LOG = logging.getLogger('appathy')
+
+
+class Request(webob.Request):
+    """
+    A special subclass of ``webob.Request`` which adds a ``context``
+    attribute, the value of which is drawn from the
+    ``appathy.context`` environment key.
+    """
+
+    context = webob.descriptors.environ_getter('appathy.context', None)
 
 
 class Application(middleware.RoutesMiddleware):
@@ -94,7 +106,7 @@ class Application(middleware.RoutesMiddleware):
         super(Application, self).__init__(self.dispatch, mapper,
                                           singleton=False)
 
-    @webob.dec.wsgify
+    @webob.dec.wsgify(RequestClass=Request)
     def dispatch(self, req):
         """
         Called by the Routes middleware to dispatch the request to the

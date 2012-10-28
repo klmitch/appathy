@@ -25,6 +25,34 @@ from appathy import utils
 import tests
 
 
+class RequestTest(tests.TestCase):
+    def test_context_unpopulated(self):
+        req = application.Request.blank('/spam')
+
+        self.assertEqual(req.context, None)
+
+    def test_context_populated(self):
+        req = application.Request.blank('/spam',
+                                        environ={'appathy.context': 'context'})
+
+        self.assertEqual(req.context, 'context')
+
+    def test_context_setter(self):
+        req = application.Request.blank('/spam')
+
+        req.context = 'context'
+
+        self.assertEqual(req.environ['appathy.context'], 'context')
+
+    def test_context_deleter(self):
+        req = application.Request.blank('/spam',
+                                        environ={'appathy.context': 'context'})
+
+        del req.context
+
+        self.assertFalse('appathy.context' in req.environ)
+
+
 class ApplicationTest(tests.TestCase):
     @mock.patch('routes.middleware.RoutesMiddleware.__init__')
     @mock.patch('routes.Mapper', return_value=mock.Mock())
